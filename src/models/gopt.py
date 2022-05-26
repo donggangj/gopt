@@ -13,6 +13,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 
+
 # code from the t2t-vit paper
 def get_sinusoid_encoding(n_position, d_hid):
     ''' Sinusoid position encoding table '''
@@ -62,6 +63,7 @@ def _no_grad_trunc_normal_(tensor, mean, std, a, b):
         tensor.clamp_(min=a, max=b)
         return tensor
 
+
 def trunc_normal_(tensor, mean=0., std=1., a=-2., b=2.):
     return _no_grad_trunc_normal_(tensor, mean, std, a, b)
 
@@ -81,9 +83,9 @@ class Attention(nn.Module):
 
     def forward(self, x):
         B, N, C = x.shape
-        #print(C)
+        # print(C)
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
-        q, k, v = qkv[0], qkv[1], qkv[2]   # make torchscript happy (cannot use tensor as tuple)
+        q, k, v = qkv[0], qkv[1], qkv[2]  # make torchscript happy (cannot use tensor as tuple)
 
         attn = (q @ k.transpose(-2, -1)) * self.scale
         attn = attn.softmax(dim=-1)
@@ -93,6 +95,7 @@ class Attention(nn.Module):
         x = self.proj(x)
         x = self.proj_drop(x)
         return x
+
 
 class Mlp(nn.Module):
     def __init__(self, in_features, hidden_features=None, out_features=None, act_layer=nn.GELU, drop=0.):
@@ -111,6 +114,7 @@ class Mlp(nn.Module):
         x = self.fc2(x)
         x = self.drop(x)
         return x
+
 
 class Block(nn.Module):
 
@@ -131,6 +135,7 @@ class Block(nn.Module):
         x = x + self.drop_path(self.mlp(self.norm2(x)))
         return x
 
+
 # standard GOPT model proposed in the paper
 class GOPT(nn.Module):
     def __init__(self, embed_dim, num_heads, depth, input_dim=84):
@@ -141,7 +146,7 @@ class GOPT(nn.Module):
         self.blocks = nn.ModuleList([Block(dim=embed_dim, num_heads=num_heads) for i in range(depth)])
 
         # sin pos embedding or learnable pos embedding, 55 = 50 sequence length + 5 utt-level cls tokens
-        #self.pos_embed = nn.Parameter(get_sinusoid_encoding(55, self.embed_dim) * 0.1, requires_grad=True)
+        # self.pos_embed = nn.Parameter(get_sinusoid_encoding(55, self.embed_dim) * 0.1, requires_grad=True)
         self.pos_embed = nn.Parameter(torch.zeros(1, 55, self.embed_dim))
         trunc_normal_(self.pos_embed, std=.02)
 
@@ -184,7 +189,7 @@ class GOPT(nn.Module):
         B = x.shape[0]
 
         # phn_one_hot in shape [batch_size, seq_len, feat_dim]
-        phn_one_hot = torch.nn.functional.one_hot(phn.long()+1, num_classes=40).float()
+        phn_one_hot = torch.nn.functional.one_hot(phn.long() + 1, num_classes=40).float()
         # phn_embed in shape [batch_size, seq_len, embed_dim]
         phn_embed = self.phn_proj(phn_one_hot)
 
@@ -225,6 +230,7 @@ class GOPT(nn.Module):
         w3 = self.mlp_head_word3(x[:, 5:])
         return u1, u2, u3, u4, u5, p, w1, w2, w3
 
+
 # GOPT model without canonical phone embedding, performance worse than standard GOPT model
 class GOPTNoPhn(nn.Module):
     def __init__(self, embed_dim, num_heads, depth, input_dim=84):
@@ -234,7 +240,7 @@ class GOPTNoPhn(nn.Module):
         self.blocks = nn.ModuleList([Block(dim=embed_dim, num_heads=num_heads) for i in range(depth)])
 
         # sin pos embedding
-        #self.pos_embed = nn.Parameter(get_sinusoid_encoding(55, self.embed_dim) * 0.1, requires_grad=True)
+        # self.pos_embed = nn.Parameter(get_sinusoid_encoding(55, self.embed_dim) * 0.1, requires_grad=True)
         self.pos_embed = nn.Parameter(torch.zeros(1, 55, self.embed_dim))
         trunc_normal_(self.pos_embed, std=.02)
 
@@ -277,14 +283,14 @@ class GOPTNoPhn(nn.Module):
         B = x.shape[0]
 
         # phn_one_hot in shape [batch_size, seq_len, feat_dim]
-        phn_one_hot =  torch.nn.functional.one_hot(phn.long()+1, num_classes=40).float()
+        phn_one_hot = torch.nn.functional.one_hot(phn.long() + 1, num_classes=40).float()
         # phn_embed in shape [batch_size, seq_len, embed_dim]
         phn_embed = self.phn_proj(phn_one_hot)
 
         if self.embed_dim != self.input_dim:
             x = self.in_proj(x)
 
-        #x = x + phn_embed
+        # x = x + phn_embed
 
         cls_token1 = self.cls_token1.expand(B, -1, -1)
         cls_token2 = self.cls_token2.expand(B, -1, -1)

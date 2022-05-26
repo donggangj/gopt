@@ -32,6 +32,7 @@ parser.add_argument("--model", type=str, default='gopt', help="name of the model
 parser.add_argument("--am", type=str, default='librispeech', help="name of the acoustic models")
 parser.add_argument("--noise", type=float, default=0., help="the scale of random noise added on the input GoP feature")
 
+
 # just to generate the header for the result.csv
 def gen_result_header():
     phn_header = ['epoch', 'phone_train_mse', 'phone_train_pcc', 'phone_test_mse', 'phone_test_pcc', 'learning rate']
@@ -41,11 +42,12 @@ def gen_result_header():
     word_header_score = ['accuracy', 'stress', 'total']
     utt_header, word_header = [], []
     for dset in utt_header_set:
-        utt_header = utt_header + [dset+'_'+x for x in utt_header_score]
+        utt_header = utt_header + [dset + '_' + x for x in utt_header_score]
     for dset in word_header_set:
-        word_header = word_header + [dset+'_'+x for x in word_header_score]
+        word_header = word_header + [dset + '_' + x for x in word_header_score]
     header = phn_header + utt_header + word_header
     return header
+
 
 def train(audio_model, train_loader, test_loader, args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -96,12 +98,12 @@ def train(audio_model, train_loader, test_loader, args):
             noise = noise.to(device, non_blocking=True)
             audio_input = audio_input + noise
 
-            #print(phns.shape)
+            # print(phns.shape)
             u1, u2, u3, u4, u5, p, w1, w2, w3 = audio_model(audio_input, phns)
 
             # filter out the padded tokens, only calculate the loss based on the valid tokens
             # < 0 is a flag of padded tokens
-            mask = (phn_label>=0)
+            mask = (phn_label >= 0)
             p = p.squeeze(2)
             p = p * mask
             phn_label = phn_label * mask
@@ -113,12 +115,12 @@ def train(audio_model, train_loader, test_loader, args):
 
             # utterance level loss, also mse
             utt_preds = torch.cat((u1, u2, u3, u4, u5), dim=1)
-            loss_utt = loss_fn(utt_preds ,utt_label)
+            loss_utt = loss_fn(utt_preds, utt_label)
 
             # word level loss
             word_label = word_label[:, :, 0:3]
-            mask = (word_label>=0)
-            word_pred = torch.cat((w1,w2,w3), dim=2)
+            mask = (word_label >= 0)
+            word_pred = torch.cat((w1, w2, w3), dim=2)
             word_pred = word_pred * mask
             word_label = word_label * mask
             loss_word = loss_fn(word_pred, word_label)
@@ -135,12 +137,19 @@ def train(audio_model, train_loader, test_loader, args):
 
         # ensemble results
         # don't save prediction for the training set
-        tr_mse, tr_corr, tr_utt_mse, tr_utt_corr, tr_word_mse, tr_word_corr = validate(audio_model, train_loader, args, -1)
-        te_mse, te_corr, te_utt_mse, te_utt_corr, te_word_mse, te_word_corr = validate(audio_model, test_loader, args, best_mse)
+        tr_mse, tr_corr, tr_utt_mse, tr_utt_corr, tr_word_mse, tr_word_corr = validate(audio_model, train_loader, args,
+                                                                                       -1)
+        te_mse, te_corr, te_utt_mse, te_utt_corr, te_word_mse, te_word_corr = validate(audio_model, test_loader, args,
+                                                                                       best_mse)
 
         print('Phone: Test MSE: {:.3f}, CORR: {:.3f}'.format(te_mse.item(), te_corr))
-        print('Utterance:, ACC: {:.3f}, COM: {:.3f}, FLU: {:.3f}, PROC: {:.3f}, Total: {:.3f}'.format(te_utt_corr[0], te_utt_corr[1], te_utt_corr[2], te_utt_corr[3], te_utt_corr[4]))
-        print('Word:, ACC: {:.3f}, Stress: {:.3f}, Total: {:.3f}'.format(te_word_corr[0], te_word_corr[1], te_word_corr[2]))
+        print('Utterance:, ACC: {:.3f}, COM: {:.3f}, FLU: {:.3f}, PROC: {:.3f}, Total: {:.3f}'.format(te_utt_corr[0],
+                                                                                                      te_utt_corr[1],
+                                                                                                      te_utt_corr[2],
+                                                                                                      te_utt_corr[3],
+                                                                                                      te_utt_corr[4]))
+        print('Word:, ACC: {:.3f}, Stress: {:.3f}, Total: {:.3f}'.format(te_word_corr[0], te_word_corr[1],
+                                                                         te_word_corr[2]))
 
         result[epoch, :6] = [epoch, tr_mse, tr_corr, te_mse, te_corr, optimizer.param_groups[0]['lr']]
 
@@ -157,15 +166,16 @@ def train(audio_model, train_loader, test_loader, args):
             best_epoch = epoch
 
         if best_epoch == epoch:
-            if os.path.exists("%s/models/" % (exp_dir)) == False:
-                os.mkdir("%s/models" % (exp_dir))
-            torch.save(audio_model.state_dict(), "%s/models/best_audio_model.pth" % (exp_dir))
+            if not os.path.exists("%s/models/" % exp_dir):
+                os.mkdir("%s/models" % exp_dir)
+            torch.save(audio_model.state_dict(), "%s/models/best_audio_model.pth" % exp_dir)
 
         if global_step > warm_up_step:
             scheduler.step()
 
         print('Epoch-{0} lr: {1}'.format(epoch, optimizer.param_groups[0]['lr']))
         epoch += 1
+
 
 def validate(audio_model, val_loader, args, best_mse):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -184,7 +194,8 @@ def validate(audio_model, val_loader, args, best_mse):
             # compute output
             u1, u2, u3, u4, u5, p, w1, w2, w3 = audio_model(audio_input, phns)
             p = p.to('cpu').detach()
-            u1, u2, u3, u4, u5 = u1.to('cpu').detach(), u2.to('cpu').detach(), u3.to('cpu').detach(), u4.to('cpu').detach(), u5.to('cpu').detach()
+            u1, u2, u3, u4, u5 = u1.to('cpu').detach(), u2.to('cpu').detach(), u3.to('cpu').detach(), u4.to(
+                'cpu').detach(), u5.to('cpu').detach()
             w1, w2, w3 = w1.to('cpu').detach(), w2.to('cpu').detach(), w3.to('cpu').detach()
 
             A_phn.append(p)
@@ -203,10 +214,11 @@ def validate(audio_model, val_loader, args, best_mse):
             A_word_target.append(word_label)
 
         # phone level
-        A_phn, A_phn_target  = torch.cat(A_phn), torch.cat(A_phn_target)
+        A_phn, A_phn_target = torch.cat(A_phn), torch.cat(A_phn_target)
 
         # utterance level
-        A_u1, A_u2, A_u3, A_u4, A_u5, A_utt_target = torch.cat(A_u1), torch.cat(A_u2), torch.cat(A_u3), torch.cat(A_u4), torch.cat(A_u5), torch.cat(A_utt_target)
+        A_u1, A_u2, A_u3, A_u4, A_u5, A_utt_target = torch.cat(A_u1), torch.cat(A_u2), torch.cat(A_u3), torch.cat(
+            A_u4), torch.cat(A_u5), torch.cat(A_utt_target)
 
         # word level
         A_w1, A_w2, A_w3, A_word_target = torch.cat(A_w1), torch.cat(A_w2), torch.cat(A_w3), torch.cat(A_word_target)
@@ -224,11 +236,11 @@ def validate(audio_model, val_loader, args, best_mse):
             print('new best phn mse {:.3f}, now saving predictions.'.format(phn_mse))
 
             # create the directory
-            if os.path.exists(args.exp_dir + '/preds') == False:
+            if not os.path.exists(args.exp_dir + '/preds'):
                 os.mkdir(args.exp_dir + '/preds')
 
             # saving the phn target, only do once
-            if os.path.exists(args.exp_dir + '/preds/phn_target.npy') == False:
+            if not os.path.exists(args.exp_dir + '/preds/phn_target.npy'):
                 np.save(args.exp_dir + '/preds/phn_target.npy', A_phn_target)
                 np.save(args.exp_dir + '/preds/word_target.npy', valid_word_target)
                 np.save(args.exp_dir + '/preds/utt_target.npy', A_utt_target)
@@ -238,6 +250,7 @@ def validate(audio_model, val_loader, args, best_mse):
             np.save(args.exp_dir + '/preds/utt_pred.npy', A_utt)
 
     return phn_mse, phn_corr, utt_mse, utt_corr, word_mse, word_corr
+
 
 def valid_phn(audio_output, target):
     valid_token_pred = []
@@ -256,6 +269,7 @@ def valid_phn(audio_output, target):
     corr = np.corrcoef(valid_token_pred, valid_token_target)[0, 1]
     return valid_token_mse, corr
 
+
 def valid_utt(audio_output, target):
     mse = []
     corr = []
@@ -265,6 +279,7 @@ def valid_utt(audio_output, target):
         mse.append(cur_mse)
         corr.append(cur_corr)
     return mse, corr
+
 
 def valid_word(audio_output, target):
     word_id = target[:, :, -1]
@@ -315,30 +330,31 @@ def valid_word(audio_output, target):
 class GoPDataset(Dataset):
     def __init__(self, set, am='librispeech'):
         # normalize the input to 0 mean and unit std.
-        if am=='librispeech':
-            dir='seq_data_librispeech'
+        if am == 'librispeech':
+            dir = 'seq_data_librispeech'
             norm_mean, norm_std = 3.203, 4.045
-        elif am=='paiia':
-            dir='seq_data_paiia'
+        elif am == 'paiia':
+            dir = 'seq_data_paiia'
             norm_mean, norm_std = -0.652, 9.737
-        elif am=='paiib':
-            dir='seq_data_paiib'
+        elif am == 'paiib':
+            dir = 'seq_data_paiib'
             norm_mean, norm_std = -0.516, 9.247
         else:
             raise ValueError('Acoustic Model Unrecognized.')
 
         if set == 'train':
-            self.feat = torch.tensor(np.load('../data/'+dir+'/tr_feat.npy'), dtype=torch.float)
-            self.phn_label = torch.tensor(np.load('../data/'+dir+'/tr_label_phn.npy'), dtype=torch.float)
-            self.utt_label = torch.tensor(np.load('../data/'+dir+'/tr_label_utt.npy'), dtype=torch.float)
-            self.word_label = torch.tensor(np.load('../data/'+dir+'/tr_label_word.npy'), dtype=torch.float)
+            self.feat = torch.tensor(np.load('../data/' + dir + '/tr_feat.npy'), dtype=torch.float)
+            self.phn_label = torch.tensor(np.load('../data/' + dir + '/tr_label_phn.npy'), dtype=torch.float)
+            self.utt_label = torch.tensor(np.load('../data/' + dir + '/tr_label_utt.npy'), dtype=torch.float)
+            self.word_label = torch.tensor(np.load('../data/' + dir + '/tr_label_word.npy'), dtype=torch.float)
         elif set == 'test':
-            self.feat = torch.tensor(np.load('../data/'+dir+'/te_feat.npy'), dtype=torch.float)
-            self.phn_label = torch.tensor(np.load('../data/'+dir+'/te_label_phn.npy'), dtype=torch.float)
-            self.utt_label = torch.tensor(np.load('../data/'+dir+'/te_label_utt.npy'), dtype=torch.float)
-            self.word_label = torch.tensor(np.load('../data/'+dir+'/te_label_word.npy'), dtype=torch.float)
+            self.feat = torch.tensor(np.load('../data/' + dir + '/te_feat.npy'), dtype=torch.float)
+            self.phn_label = torch.tensor(np.load('../data/' + dir + '/te_label_phn.npy'), dtype=torch.float)
+            self.utt_label = torch.tensor(np.load('../data/' + dir + '/te_label_utt.npy'), dtype=torch.float)
+            self.word_label = torch.tensor(np.load('../data/' + dir + '/te_label_word.npy'), dtype=torch.float)
 
-        # normalize the GOP feature using the training set mean and std (only count the valid token features, exclude the padded tokens).
+        # normalize the GOP feature using the training set mean and std
+        # (only count the valid token features, exclude the padded tokens).
         self.feat = self.norm_valid(self.feat, norm_mean, norm_std)
 
         # normalize the utt_label to 0-2 (same with phn score range)
@@ -363,14 +379,19 @@ class GoPDataset(Dataset):
 
     def __getitem__(self, idx):
         # feat, phn_label, phn_id, utt_label, word_label
-        return self.feat[idx, :], self.phn_label[idx, :, 1], self.phn_label[idx, :, 0], self.utt_label[idx, :], self.word_label[idx, :]
+        return (self.feat[idx, :],
+                self.phn_label[idx, :, 1],
+                self.phn_label[idx, :, 0],
+                self.utt_label[idx, :],
+                self.word_label[idx, :])
+
 
 args = parser.parse_args()
 
 am = args.am
 print('now train with {:s} acoustic models'.format(am))
-feat_dim = {'librispeech':84, 'paiia':86, 'paiib': 88}
-input_dim=feat_dim[am]
+feat_dim = {'librispeech': 84, 'paiia': 86, 'paiib': 88}
+input_dim = feat_dim[am]
 
 # nowa is the best models used in this work
 if args.model == 'gopt':
@@ -383,6 +404,8 @@ elif args.model == 'gopt_nophn':
 elif args.model == 'lstm':
     print('now train a baseline LSTM model')
     audio_mdl = BaselineLSTM(embed_dim=args.embed_dim, depth=args.goptdepth, input_dim=input_dim)
+else:
+    raise NotImplementedError
 
 tr_dataset = GoPDataset('train', am=am)
 tr_dataloader = DataLoader(tr_dataset, batch_size=args.batch_size, shuffle=True)
