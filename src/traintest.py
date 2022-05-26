@@ -177,7 +177,8 @@ def train(audio_model, train_loader, test_loader, args):
         epoch += 1
 
 
-def validate(audio_model, val_loader, args, best_mse):
+def validate(audio_model, val_loader, args, best_mse,
+             to_onnx=False, onnx_path='GOPT.onnx'):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     if not isinstance(audio_model, nn.DataParallel):
         audio_model = nn.DataParallel(audio_model)
@@ -193,6 +194,36 @@ def validate(audio_model, val_loader, args, best_mse):
 
             # compute output
             u1, u2, u3, u4, u5, p, w1, w2, w3 = audio_model(audio_input, phns)
+            if to_onnx and not os.path.exists(onnx_path):
+                from torch.onnx import export as ex_to_onnx
+                ex_to_onnx(audio_model,
+                           (audio_input, phns),
+                           onnx_path,
+                           export_params=True,
+                           opset_version=14,
+                           do_constant_folding=True,
+                           input_names=['audio_input',
+                                        'phonemes'],
+                           output_names=['utterance_accuracy',
+                                         'utterance_fluency',
+                                         'utterance_completeness',
+                                         'utterance_prosodic',
+                                         'utterance_total',
+                                         'phoneme_score',
+                                         'word_accuracy',
+                                         'word_stress',
+                                         'word_total'],
+                           dynamic_axes={'audio_input': {0: 'batch_size'},
+                                         'phonemes': {0: 'batch_size'},
+                                         'utterance_accuracy': {0: 'batch_size'},
+                                         'utterance_fluency': {0: 'batch_size'},
+                                         'utterance_completeness': {0: 'batch_size'},
+                                         'utterance_prosodic': {0: 'batch_size'},
+                                         'utterance_total': {0: 'batch_size'},
+                                         'phoneme_score': {0: 'batch_size'},
+                                         'word_accuracy': {0: 'batch_size'},
+                                         'word_stress': {0: 'batch_size'},
+                                         'word_total': {0: 'batch_size'}})
             p = p.to('cpu').detach()
             u1, u2, u3, u4, u5 = u1.to('cpu').detach(), u2.to('cpu').detach(), u3.to('cpu').detach(), u4.to(
                 'cpu').detach(), u5.to('cpu').detach()
