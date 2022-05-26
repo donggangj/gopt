@@ -179,9 +179,13 @@ def train(audio_model, train_loader, test_loader, args):
 
 def validate(audio_model, val_loader, args, best_mse,
              to_onnx=False, onnx_path='GOPT.onnx'):
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    if not isinstance(audio_model, nn.DataParallel):
-        audio_model = nn.DataParallel(audio_model)
+    if to_onnx and not os.path.exists(onnx_path):
+        device = torch.device('cpu')
+    else:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        if not isinstance(audio_model, nn.DataParallel):
+            audio_model = nn.DataParallel(audio_model)
+
     audio_model = audio_model.to(device)
     audio_model.eval()
 
@@ -200,7 +204,7 @@ def validate(audio_model, val_loader, args, best_mse,
                            (audio_input, phns),
                            onnx_path,
                            export_params=True,
-                           opset_version=14,
+                           opset_version=12,
                            do_constant_folding=True,
                            input_names=['audio_input',
                                         'phonemes'],
@@ -438,9 +442,11 @@ elif args.model == 'lstm':
 else:
     raise NotImplementedError
 
-tr_dataset = GoPDataset('train', am=am)
-tr_dataloader = DataLoader(tr_dataset, batch_size=args.batch_size, shuffle=True)
 te_dataset = GoPDataset('test', am=am)
 te_dataloader = DataLoader(te_dataset, batch_size=2500, shuffle=False)
 
+# validate(audio_mdl, te_dataloader, args, -1, True)
+
+tr_dataset = GoPDataset('train', am=am)
+tr_dataloader = DataLoader(tr_dataset, batch_size=args.batch_size, shuffle=True)
 train(audio_mdl, tr_dataloader, te_dataloader, args)
